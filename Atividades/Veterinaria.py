@@ -66,7 +66,7 @@ class Usuario:
             self.pets.peso = input("Informe o peso dele:")
             
     def listar_pet(self):
-        a2
+        print(Pet)
         
 
 class FichaPerfil:
