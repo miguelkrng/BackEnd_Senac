@@ -85,7 +85,7 @@ class BatalhaNaval(ctk.CTk):
             btn.configure(text="💥", fg_color="#d80b4f", hover_color="#ad053d", state="disabled")
         else:
             btn.configure(text="🌊", fg_color="#0b64d8", hover_color="#0350c5", state="disabled")
-        self.atualizar_status
+        self.atualizar_status()
         
         if self.acertos == self.totalNavios:
             messagebox.showinfo(
