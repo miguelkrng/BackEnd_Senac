@@ -68,7 +68,7 @@ THEMES = {
         "bg_light": "#FFE6F0",
         "card_light": "#FFFFFF",
     },
-    "🌊 Azul H2O": {
+    "🌊 Azul Mar": {
         "primary": "#0059FF",
         "hover": "#0036E6",
         "accent": "#4DB8FF",
@@ -303,10 +303,96 @@ class LoginFrame(ctk.CTkFrame):
 #Tela de Cadastro
 class RegisterFrame(ctk.CTkFrame):
     def __init__(self, parent, controller):
-            super().__init__(parent, fg_color="transparent")
-            self.controller = controller
-    pass
+        super().__init__(parent, fg_color="transparent")
+        self.controller = controller
+    
+        self.card = ctk.CTkFrame(self, width=480, height=600, corner_radius=20, border_width=2)
+        self.card.place(relx=0.5, rely=0.5, anchor="center")
+        self.card.pack_propagate(False)
+        
+        self.title_label = ctk.CTkLabel(
+            self.card,
+            text="Novo Usuário",
+            font= ctk.CTkFont(size=28, weight="bold")
+        )
+        self.title_label.pack(pady=(40,10), padx=30)
+        
+        self.feedback_label = ctk.CTkLabel(self.card, text="", font=ctk.CTkFont(size=14))
+        self.feedback_label.pack(pady=(0, 10))
+        
+        self.name_entry = ctk.CTkEntry( 
+            self.card, width=360, height=50, font= ctk.CTkFont(size=16),
+            placeholder_text="Nome Completo", placeholder_text_color=("gray50", "gray60")
+        )
+        self.name_entry.pack(pady=8, padx=30)
+        
+        self.email_entry = ctk.CTkEntry(
+            self.card, width=360, height=50, font= ctk.CTkFont(size=16),
+            placeholder_text="Email de Contato", placeholder_text_color=("gray50", "gray60")
+        )
+        self.email_entry.pack(pady=8, padx=30)
+        
+        self.pass_entry = ctk.CTkEntry(
+            self.card, width=360, height=50, font= ctk.CTkFont(size=16), show= "*",
+            placeholder_text="Senha (mín. 4 caracteres)", placeholder_text_color=("gray50", "gray60")
+        )
+        self.pass_entry.pack(pady=8, padx=30)
+        
+        self.register_btn = ctk.CTkButton(
+            self.card,
+            text="Cadastrar e Salvar",
+            width=360, height=55, font= ctk.CTkFont(size=16, weight="bold"),
+            command = self.handle_register
+        )
+        self.register_btn.pack(pady=(0,20))
+        
+        self.back_btn = ctk.CTkButton(
+            self.card,
+            text="Já tenho uma conta (Voltar)",
+            font= ctk.CTkFont(size=14),
+            fg_color= "transparent", hover_color=("gray85", "gray25"),
+            command = lambda: self.controller.show_frame("LoginFrame")
+        )
+        self.back_btn.pack(pady=(0,20))
 
+    def on_show(self, **kwargs):
+        self.feedback_label.configure(text="")
+        self.name_entry.delete(0, "end")
+        self.email_entry.delete(0, "end")
+        self.pass_entry.delete(0, "end")
+    
+    def handle_register(self):
+        name = self.name_entry.get().strip()
+        email = self.email_entry.get().strip()
+        password = self.pass_entry.get().strip()
+        
+        if not name or not email or not password:
+            self.feedback_label.configure(text="Todos os campos são obrigatórios!", text_color= "#f8163c")
+            return
+        if len(password)<4:
+            self.feedback_label.configure(text="A senha não pode ter menos de 4 caracteres!", text_color ="#f8163c")
+        
+        success, msg = Database.register_user(name, email, password)
+        if success:
+            self.controller.show_frame("LoginFrame")
+            login_frame = self.controller.frames["LoginFrame"]
+            login_frame.feedback_label.configure(text="Conta criada! Faça login para acessar.", text_color = "#12D494")
+            login_frame.email_entry.delete(0, "end")
+            login_frame.email_entry.insert(0, email)
+        else:
+            self.feedback_label.configure(text= msg, text_color="#f8163c")
+            
+    def apply_theme(self, theme):
+        self.card.configure(
+            fg_color=(theme["card_light"], theme["card_dark"]),
+            border_color= theme["primary"],
+        )
+        self.register_btn.configure(fg_color= theme["primary"], hover_color = theme["hover"])
+        self.name_entry.configure(border_color = theme["accent"])
+        self.email_entry.configure(border_color = theme["accent"])
+        self.pass_entry.configure(border_color = theme["accent"])
+        self.back_btn.configure(text_color = theme["primary"])
+        
 #Tela Home
 class HomePlaceHolderFrame(ctk.CTkFrame):
     def __init__(self, parent, controller):
