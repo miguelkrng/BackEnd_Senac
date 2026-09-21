@@ -1,0 +1,976 @@
+import os
+import sqlite3
+from datetime import datetime
+from tkinter import filedialog, messagebox
+import customtkinter as ctk
+from PIL import Image
+
+# Configuração global inicial
+ctk.set_appearance_mode("Dark")
+
+
+# =====================================================================
+# 1. BANCO DE DADOS (SQLite3)
+# =====================================================================
+class Database:
+    @staticmethod
+    def get_connection():
+        return sqlite3.connect("petopia.db")
+
+    @staticmethod
+    def init_db():
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    username TEXT UNIQUE NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    phone TEXT,
+                    address TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS pets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    species TEXT NOT NULL,
+                    breed TEXT NOT NULL,
+                    age TEXT NOT NULL,
+                    icon TEXT NOT NULL,
+                    image_path TEXT DEFAULT '',
+                    status TEXT DEFAULT 'Ativo',
+                    has_alert INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+            """)
+
+            try:
+                cursor.execute("ALTER TABLE pets ADD COLUMN image_path TEXT DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS custom_species (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE NOT NULL
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS custom_icons (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE NOT NULL
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS appointments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    pet_name TEXT NOT NULL,
+                    service_type TEXT NOT NULL,
+                    app_date TEXT NOT NULL,
+                    status TEXT DEFAULT 'Pendente',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS health_records (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    pet_name TEXT NOT NULL,
+                    record_type TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    record_date TEXT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS activities (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    icon TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    time_ago TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+            """)
+
+            # Valores padrão para tipos de pets e categorias
+            default_species = ["Pikachu", "Bulbassauro", "Eevee", "Fletchling", "Tandemaus", "Totodile", "Snom"]
+            for s in default_species:
+                cursor.execute("INSERT OR IGNORE INTO custom_species (name) VALUES (?)", (s,))
+
+            default_icons = ["⚡ Elétrico", "🔥 Fogo", "🌿 Grama", "💧 Água", "❄️ Gelo", "🐦 Voador", "⭐ Normal"]
+            for icon_name in default_icons:
+                cursor.execute("INSERT OR IGNORE INTO custom_icons (name) VALUES (?)", (icon_name,))
+
+            conn.commit()
+
+    # Operações de Usuário
+    @staticmethod
+    def register_user(name, username, email, password, phone, address):
+        try:
+            with Database.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO users (name, username, email, password, phone, address)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (name.strip(), username.strip().lower(), email.strip().lower(), password, phone.strip(), address.strip()))
+                conn.commit()
+                return True, "Cadastro realizado com sucesso!"
+        except sqlite3.IntegrityError as e:
+            if "username" in str(e):
+                return False, "Este nome de usuário já está em uso!"
+            return False, "Este email já está cadastrado!"
+        except Exception as e:
+            return False, f"Erro: {str(e)}"
+
+    @staticmethod
+    def authenticate_user(login_identifier, password):
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, name, username, email, phone, address 
+                FROM users 
+                WHERE (email = ? OR username = ?) AND password = ?
+            """, (login_identifier.strip().lower(), login_identifier.strip().lower(), password))
+            user = cursor.fetchone()
+            if user:
+                return True, {
+                    "id": user[0], "name": user[1], "username": user[2],
+                    "email": user[3], "phone": user[4], "address": user[5]
+                }
+            return False, "Credenciais inválidas!"
+
+    @staticmethod
+    def update_user(user_id, name, email, phone, address):
+        try:
+            with Database.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE users SET name = ?, email = ?, phone = ?, address = ? WHERE id = ?
+                """, (name.strip(), email.strip().lower(), phone.strip(), address.strip(), user_id))
+                conn.commit()
+                return True, "Perfil atualizado com sucesso!"
+        except sqlite3.IntegrityError:
+            return False, "Este email já pertence a outro usuário!"
+        except Exception as e:
+            return False, str(e)
+
+    # Operações de Pets
+    @staticmethod
+    def add_pet(user_id, name, species, breed, age, icon, image_path, has_alert):
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            status = "Alerta!" if has_alert else "Ativo"
+            cursor.execute("""
+                INSERT INTO pets (user_id, name, species, breed, age, icon, image_path, status, has_alert)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, name, species, breed, age, icon, image_path, status, 1 if has_alert else 0))
+            
+            cursor.execute("""
+                INSERT INTO activities (user_id, icon, description, time_ago)
+                VALUES (?, ?, ?, ?)
+            """, (user_id, "🐾", f"{name} ({species}) foi registrado.", "Agora mesmo"))
+            conn.commit()
+
+    @staticmethod
+    def update_pet(pet_id, user_id, name, species, breed, age, icon, image_path, has_alert):
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            status = "Alerta!" if has_alert else "Ativo"
+            cursor.execute("""
+                UPDATE pets 
+                SET name = ?, species = ?, breed = ?, age = ?, icon = ?, image_path = ?, status = ?, has_alert = ?
+                WHERE id = ? AND user_id = ?
+            """, (name, species, breed, age, icon, image_path, status, 1 if has_alert else 0, pet_id, user_id))
+            
+            cursor.execute("""
+                INSERT INTO activities (user_id, icon, description, time_ago)
+                VALUES (?, ?, ?, ?)
+            """, (user_id, "✏️", f"Informações de {name} foram atualizadas.", "Agora mesmo"))
+            conn.commit()
+
+    @staticmethod
+    def get_pets(user_id):
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, name, species, breed, age, icon, image_path, status, has_alert 
+                FROM pets WHERE user_id = ? ORDER BY id DESC
+            """, (user_id,))
+            return cursor.fetchall()
+
+    @staticmethod
+    def delete_pet(pet_id, user_id):
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM pets WHERE id = ? AND user_id = ?", (pet_id, user_id))
+            conn.commit()
+
+    # Tipos e Raças Dinâmicos
+    @staticmethod
+    def get_species_list():
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM custom_species ORDER BY id ASC")
+            rows = cursor.fetchall()
+            return [r[0] for r in rows] if rows else ["Pokémon"]
+
+    @staticmethod
+    def add_species(name):
+        try:
+            with Database.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO custom_species (name) VALUES (?)", (name.strip(),))
+                conn.commit()
+                return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def get_icons_list():
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM custom_icons ORDER BY id ASC")
+            rows = cursor.fetchall()
+            return [r[0] for r in rows] if rows else ["🐲 Pokémon"]
+
+    @staticmethod
+    def add_icon(name):
+        try:
+            with Database.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO custom_icons (name) VALUES (?)", (name.strip(),))
+                conn.commit()
+                return True
+        except Exception:
+            return False
+
+    # Agendamentos e Saúde
+    @staticmethod
+    def add_appointment(user_id, pet_name, service_type, app_date, status="Pendente"):
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO appointments (user_id, pet_name, service_type, app_date, status)
+                VALUES (?, ?, ?, ?, ?)
+            """, (user_id, pet_name, service_type, app_date, status))
+
+            cursor.execute("""
+                INSERT INTO activities (user_id, icon, description, time_ago)
+                VALUES (?, ?, ?, ?)
+            """, (user_id, "📅", f"Novo agendamento ({service_type}) para {pet_name}.", "Agora mesmo"))
+            conn.commit()
+
+    @staticmethod
+    def get_appointments(user_id):
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, pet_name, service_type, app_date, status FROM appointments WHERE user_id = ? ORDER BY id DESC", (user_id,))
+            return cursor.fetchall()
+
+    @staticmethod
+    def add_health_record(user_id, pet_name, record_type, description, record_date):
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO health_records (user_id, pet_name, record_type, description, record_date)
+                VALUES (?, ?, ?, ?, ?)
+            """, (user_id, pet_name, record_type, description, record_date))
+            cursor.execute("""
+                INSERT INTO activities (user_id, icon, description, time_ago)
+                VALUES (?, ?, ?, ?)
+            """, (user_id, "🩺", f"Registro médico ({record_type}) para {pet_name}.", "Agora mesmo"))
+            conn.commit()
+
+    @staticmethod
+    def get_health_records(user_id):
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, pet_name, record_type, description, record_date FROM health_records WHERE user_id = ? ORDER BY id DESC", (user_id,))
+            return cursor.fetchall()
+
+    @staticmethod
+    def get_activities(user_id, limit=4):
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT icon, description, time_ago FROM activities WHERE user_id = ? ORDER BY id DESC LIMIT ?", (user_id, limit))
+            return cursor.fetchall()
+
+    @staticmethod
+    def get_dashboard_metrics(user_id):
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM pets WHERE user_id = ?", (user_id,))
+            total_pets = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(*) FROM appointments WHERE user_id = ? AND status = 'Pendente'", (user_id,))
+            prox_consultas = cursor.fetchone()[0]
+
+            today = datetime.now().strftime("%d/%m")
+            cursor.execute("SELECT COUNT(*) FROM appointments WHERE user_id = ? AND app_date LIKE ?", (user_id, f"{today}%"))
+            atendimentos_hoje = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(*) FROM pets WHERE user_id = ? AND has_alert = 1", (user_id,))
+            alertas = cursor.fetchone()[0]
+
+            return total_pets, prox_consultas, atendimentos_hoje, alertas
+
+
+# =====================================================================
+# 2. PALETAS DE CORES & CUSTOMIZAÇÃO ESTÉTICA
+# =====================================================================
+THEMES = {
+    "❄️ Ciano Aurorus": {
+        "primary": "#38BDF8",
+        "hover": "#0284C7",
+        "accent": "#7DD3FC",
+        "bg_dark": "#0B132B",
+        "card_dark": "#131E3A",
+        "sidebar_dark": "#0F172A",
+        "bg_light": "#F0F9FF",
+        "card_light": "#FFFFFF",
+        "sidebar_light": "#E0F2FE"
+    },
+    "🌸 Rosa Chansey": {
+        "primary": "#F472B6",
+        "hover": "#DB2777",
+        "accent": "#FBCFE8",
+        "bg_dark": "#1F121C",
+        "card_dark": "#2E1A29",
+        "sidebar_dark": "#180D15",
+        "bg_light": "#FDF2F8",
+        "card_light": "#FFFFFF",
+        "sidebar_light": "#FCE7F3"
+    },
+    "🔥 Laranja Charizard": {
+        "primary": "#FB923C",
+        "hover": "#EA580C",
+        "accent": "#FED7AA",
+        "bg_dark": "#1C120C",
+        "card_dark": "#2A1B12",
+        "sidebar_dark": "#170E0A",
+        "bg_light": "#FFF7ED",
+        "card_light": "#FFFFFF",
+        "sidebar_light": "#FFEDD5"
+    },
+    "⚡ Amarelo Pikachu": {
+        "primary": "#FACC15",
+        "hover": "#CA8A04",
+        "accent": "#FEF08A",
+        "bg_dark": "#1A1708",
+        "card_dark": "#29240D",
+        "sidebar_dark": "#141206",
+        "bg_light": "#FEFCE8",
+        "card_light": "#FFFFFF",
+        "sidebar_light": "#FEF9C3"
+    },
+    "🌿 Verde Bulbasaur": {
+        "primary": "#34D399",
+        "hover": "#059669",
+        "accent": "#A7F3D0",
+        "bg_dark": "#0B1A14",
+        "card_dark": "#142920",
+        "sidebar_dark": "#08140F",
+        "bg_light": "#ECFDF5",
+        "card_light": "#FFFFFF",
+        "sidebar_light": "#D1FAE5"
+    },
+    "👻 Roxo Gengar": {
+            "primary": "#8422D4",
+            "hover": "#6513A8",
+            "accent": "#C2A7F3",
+            "bg_dark": "#130B1A",
+            "card_dark": "#1E1429",
+            "sidebar_dark": "#0C0814",
+            "bg_light": "#F5ECFD",
+            "card_light": "#FFFFFF",
+            "sidebar_light": "#EAD1FA"
+        },
+    "🏅 Vermelho Incineroar": {
+                "primary": "#D42231",
+                "hover": "#A81327",
+                "accent": "#F3A7AD",
+                "bg_dark": "#1A0B0D",
+                "card_dark": "#291418",
+                "sidebar_dark": "#14080A",
+                "bg_light": "#FDECEF",
+                "card_light": "#FFFFFF",
+                "sidebar_light": "#FAD1D6"
+            }
+}
+
+
+# =====================================================================
+# 3. HELPER: RENDERIZADOR GARANTIDO DE IMAGENS/AVATARES
+# =====================================================================
+def create_avatar_component(parent, image_path, fallback_icon, size=(52, 52)):
+    """
+    Cria e retorna um CTkLabel renderizando a imagem via ImageTk.PhotoImage
+    se o arquivo for válido, ou exibe o ícone caso contrário.
+    """
+    if image_path and os.path.isfile(image_path):
+        try:
+            pil_img = Image.open(image_path).convert("RGB")
+            # Recorta centralizado (formato quadrado perfeito)
+            w, h = pil_img.size
+            min_dim = min(w, h)
+            left = (w - min_dim) / 2
+            top = (h - min_dim) / 2
+            right = (w + min_dim) / 2
+            bottom = (h + min_dim) / 2
+            pil_img = pil_img.crop((left, top, right, bottom))
+            pil_img = pil_img.resize(size, Image.Resampling.LANCZOS)
+            
+            photo = ctk.CTkImage(
+                light_image=pil_img,
+                dark_image=pil_img,
+                size=size
+            )
+            lbl = ctk.CTkLabel(parent, text="", image=photo, width=size[0], height=size[1])
+            lbl.img_ref = photo  # Salva a referência estrita para evitar garbage collection
+            return lbl
+        except Exception:
+            pass
+
+    font_sz = int(size[1] * 0.52)
+    return ctk.CTkLabel(
+        parent, text=fallback_icon,
+        font=ctk.CTkFont(size=font_sz),
+        width=size[0], height=size[1]
+    )
+
+
+# =====================================================================
+# 4. APLICAÇÃO PRINCIPAL (ROUTER & ESTADO GLOBAL)
+# =====================================================================
+class App(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+
+        Database.init_db()
+
+        self.title("PokeCenter Manager")
+        self.geometry("1240x780")
+        self.minsize(1050, 680)
+
+        self.current_theme_name = "❄️ Ciano Aurorus"
+        self.theme = THEMES[self.current_theme_name]
+        self.current_user = None
+
+        self.container = ctk.CTkFrame(self, fg_color="transparent")
+        self.container.pack(fill="both", expand=True)
+        self.container.grid_rowconfigure(0, weight=1)
+        self.container.grid_columnconfigure(0, weight=1)
+
+        self.frames = {}
+        for FrameClass in (LoginFrame, RegisterFrame, HomeContainerFrame):
+            page_name = FrameClass.__name__
+            frame = FrameClass(parent=self.container, controller=self)
+            self.frames[page_name] = frame
+
+        self.current_frame = None
+        self.apply_theme()
+        self.show_frame("LoginFrame")
+
+    def show_frame(self, page_name, **kwargs):
+        if self.current_frame is not None:
+            self.current_frame.grid_forget()
+            
+        frame = self.frames[page_name]
+        self.current_frame = frame
+        frame.grid(row=0, column=0, sticky="nsew")
+        
+        if hasattr(frame, "on_show"):
+            frame.on_show(**kwargs)
+
+    def set_theme(self, theme_name):
+        self.current_theme_name = theme_name
+        self.theme = THEMES[theme_name]
+        self.apply_theme()
+
+    def apply_theme(self):
+        t = self.theme
+        self.configure(fg_color=(t["bg_light"], t["bg_dark"]))
+        for frame in self.frames.values():
+            if hasattr(frame, "apply_theme"):
+                frame.apply_theme(t)
+
+
+# =====================================================================
+# 5. TELA DE LOGIN
+# =====================================================================
+class LoginFrame(ctk.CTkFrame):
+    def __init__(self, parent, controller):
+        super().__init__(parent, fg_color="transparent")
+        self.controller = controller
+
+        self.card = ctk.CTkFrame(self, width=460, height=520, corner_radius=20, border_width=2)
+        self.card.place(relx=0.5, rely=0.5, anchor="center")
+        self.card.pack_propagate(False)
+
+        self.title_label = ctk.CTkLabel(
+            self.card, text="🐾 PokeCentro - Login", 
+            font=ctk.CTkFont(size=24, weight="bold")
+        )
+        self.title_label.pack(pady=(45, 6))
+
+        self.subtitle = ctk.CTkLabel(
+            self.card, text="Gerenciador de Pokémons", 
+            font=ctk.CTkFont(size=13), text_color="gray60"
+        )
+        self.subtitle.pack(pady=(0, 15))
+
+        self.feedback = ctk.CTkLabel(self.card, text="", font=ctk.CTkFont(size=13))
+        self.feedback.pack(pady=(0, 10))
+
+        self.login_entry = ctk.CTkEntry(
+            self.card, width=340, height=48, 
+            placeholder_text="Email ou Nome de Usuário",
+            font=ctk.CTkFont(size=14)
+        )
+        self.login_entry.pack(pady=8)
+
+        self.pass_entry = ctk.CTkEntry(
+            self.card, width=340, height=48, 
+            placeholder_text="Senha de Acesso", 
+            show="•", font=ctk.CTkFont(size=14)
+        )
+        self.pass_entry.pack(pady=8)
+
+        self.btn_login = ctk.CTkButton(
+            self.card, text="Acessar Sistema", 
+            width=340, height=50, font=ctk.CTkFont(size=15, weight="bold"),
+            text_color="#000000", command=self.handle_login
+        )
+        self.btn_login.pack(pady=(25, 12))
+
+        self.btn_goto_register = ctk.CTkButton(
+            self.card, text="Novo no Centro? Cadastre-se", 
+            fg_color="transparent", font=ctk.CTkFont(size=13),
+            command=lambda: self.controller.show_frame("RegisterFrame")
+        )
+        self.btn_goto_register.pack()
+
+    def on_show(self):
+        self.feedback.configure(text="")
+        self.pass_entry.delete(0, "end")
+
+    def handle_login(self):
+        ident = self.login_entry.get().strip()
+        pwd = self.pass_entry.get()
+
+        if not ident or not pwd:
+            self.feedback.configure(text="Preencha todos os campos!", text_color="#EF4444")
+            return
+
+        success, result = Database.authenticate_user(ident, pwd)
+        if success:
+            self.controller.current_user = result
+            self.controller.show_frame("HomeContainerFrame")
+        else:
+            self.feedback.configure(text=result, text_color="#EF4444")
+
+    def apply_theme(self, theme):
+        self.card.configure(
+            fg_color=(theme["card_light"], theme["card_dark"]),
+            border_color=theme["primary"]
+        )
+        self.title_label.configure(text_color=theme["primary"])
+        self.btn_login.configure(fg_color=theme["primary"], hover_color=theme["hover"])
+        self.btn_goto_register.configure(text_color=theme["primary"])
+
+
+# =====================================================================
+# 6. TELA DE CADASTRO
+# =====================================================================
+class RegisterFrame(ctk.CTkFrame):
+    def __init__(self, parent, controller):
+        super().__init__(parent, fg_color="transparent")
+        self.controller = controller
+
+        self.card = ctk.CTkFrame(self, width=540, height=660, corner_radius=20, border_width=2)
+        self.card.place(relx=0.5, rely=0.5, anchor="center")
+        self.card.pack_propagate(False)
+
+        self.title_label = ctk.CTkLabel(
+            self.card, text="Novo Treinador", 
+            font=ctk.CTkFont(size=24, weight="bold")
+        )
+        self.title_label.pack(pady=(25, 5))
+
+        self.feedback = ctk.CTkLabel(self.card, text="", font=ctk.CTkFont(size=12))
+        self.feedback.pack(pady=(0, 10))
+
+        grid_box = ctk.CTkFrame(self.card, fg_color="transparent")
+        grid_box.pack(fill="x", padx=30)
+        grid_box.grid_columnconfigure((0, 1), weight=1)
+
+        self.name_entry = ctk.CTkEntry(grid_box, height=44, placeholder_text="Nome Completo")
+        self.name_entry.grid(row=0, column=0, columnspan=2, pady=6, sticky="ew")
+
+        self.user_entry = ctk.CTkEntry(grid_box, height=44, placeholder_text="Nome de Usuário (@)")
+        self.user_entry.grid(row=1, column=0, padx=(0, 5), pady=6, sticky="ew")
+
+        self.email_entry = ctk.CTkEntry(grid_box, height=44, placeholder_text="Email de Contato")
+        self.email_entry.grid(row=1, column=1, padx=(5, 0), pady=6, sticky="ew")
+
+        self.phone_entry = ctk.CTkEntry(grid_box, height=44, placeholder_text="Telefone")
+        self.phone_entry.grid(row=2, column=0, padx=(0, 5), pady=6, sticky="ew")
+
+        self.pass_entry = ctk.CTkEntry(grid_box, height=44, placeholder_text="Senha (mín. 4 caracteres)", show="•")
+        self.pass_entry.grid(row=2, column=1, padx=(5, 0), pady=6, sticky="ew")
+
+        self.address_entry = ctk.CTkEntry(grid_box, height=44, placeholder_text="Endereço Completo / Cidade")
+        self.address_entry.grid(row=3, column=0, columnspan=2, pady=6, sticky="ew")
+
+        self.btn_submit = ctk.CTkButton(
+            self.card, text="Finalizar Cadastro", 
+            width=380, height=48, font=ctk.CTkFont(size=15, weight="bold"),
+            text_color="#000000", command=self.handle_register
+        )
+        self.btn_submit.pack(pady=(25, 10))
+
+        self.btn_back = ctk.CTkButton(
+            self.card, text="Já possui registro? Entrar", 
+            fg_color="transparent", font=ctk.CTkFont(size=13),
+            command=lambda: self.controller.show_frame("LoginFrame")
+        )
+        self.btn_back.pack()
+
+    def on_show(self):
+        self.feedback.configure(text="")
+        for entry in (self.name_entry, self.user_entry, self.email_entry, self.phone_entry, self.pass_entry, self.address_entry):
+            entry.delete(0, "end")
+
+    def handle_register(self):
+        name = self.name_entry.get().strip()
+        user = self.user_entry.get().strip()
+        email = self.email_entry.get().strip()
+        phone = self.phone_entry.get().strip()
+        pwd = self.pass_entry.get()
+        address = self.address_entry.get().strip()
+
+        if not all([name, user, email, pwd]):
+            self.feedback.configure(text="Preencha Nome, Usuário, Email e Senha!", text_color="#EF4444")
+            return
+
+        if len(pwd) < 4:
+            self.feedback.configure(text="A senha deve ter ao menos 4 caracteres!", text_color="#EF4444")
+            return
+
+        success, msg = Database.register_user(name, user, email, pwd, phone, address)
+        if success:
+            self.controller.show_frame("LoginFrame")
+            lf = self.controller.frames["LoginFrame"]
+            lf.feedback.configure(text="Cadastro realizado com sucesso! Faça login.", text_color="#10B981")
+            lf.login_entry.delete(0, "end")
+            lf.login_entry.insert(0, user)
+        else:
+            self.feedback.configure(text=msg, text_color="#EF4444")
+
+    def apply_theme(self, theme):
+        self.card.configure(
+            fg_color=(theme["card_light"], theme["card_dark"]),
+            border_color=theme["primary"]
+        )
+        self.title_label.configure(text_color=theme["primary"])
+        self.btn_submit.configure(fg_color=theme["primary"], hover_color=theme["hover"])
+        self.btn_back.configure(text_color=theme["primary"])
+        
+# =====================================================================
+# 7. HOME CONTAINER (Com Confirmação de Logout no Perfil)
+# =====================================================================
+class HomeContainerFrame(ctk.CTkFrame):
+    def __init__(self, parent, controller):
+        super().__init__(parent, fg_color="transparent")
+        self.controller = controller
+
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+
+        # -----------------------------
+        # SIDEBAR ESQUERDA
+        # -----------------------------
+        self.sidebar = ctk.CTkFrame(self, width=260, corner_radius=0)
+        self.sidebar.grid(row=0, column=0, sticky="nsew")
+        self.sidebar.grid_rowconfigure(12, weight=1)
+
+        self.logo_label = ctk.CTkLabel(
+            self.sidebar, text="🐾 PokeCentro", 
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        self.logo_label.grid(row=0, column=0, padx=20, pady=(25, 20), sticky="w")
+
+        self.theme_picker_label = ctk.CTkLabel(self.sidebar, text="🎨 Estética Mon:", font=ctk.CTkFont(size=12, weight="bold"))
+        self.theme_picker_label.grid(row=8, column=0, padx=20, pady=(20, 2), sticky="w")
+        
+        self.nav_buttons = {}
+        tabs = {
+        ("dashboard", "📶 Dashboard"),
+        ("pets", "🐲 Meus Pokémons"),
+        ("appointments", "📅 Agendamentos"),
+        ("health", "💊 Saúde e tratamentos"),
+        ("reports", "📋 Relatórios"),
+        ("settings", "⚙️ Configurações")
+        }
+        
+        for i, (key, label) in enumerate(tabs, start=1):
+            btn = ctk.CTkButton(
+                self.sidebar, 
+                text=f"{label}", height=42, anchor="w", corner_radius=10,
+                font=ctk.CTkFont(size=14), fg_color="transparent",text_color="gray70",
+                command= lambda k=key: self.switch_tab(k)
+            )
+            btn.grid(row=i, column=0, padx=15, pady=3, sticky="ew")
+            self.nav_buttons[key] = btn
+
+        self.theme_menu = ctk.CTkOptionMenu(
+            self.sidebar, values=list(THEMES.keys()),
+            command=self.controller.set_theme, height=34
+        )
+        self.theme_menu.grid(row=9, column=0, padx=15, pady=4, sticky="ew")
+
+        self.mode_menu = ctk.CTkOptionMenu(
+            self.sidebar, values=["Dark", "Light", "System"],
+            command=ctk.set_appearance_mode, height=34
+        )
+        self.mode_menu.grid(row=10, column=0, padx=15, pady=(4, 15), sticky="ew")
+        
+        self.profile_card = ctk.CTkButton(
+            self.sidebar, text="👤 Carregando... \n - Online", height=50,
+            command = self.confirm_logout
+        )
+        self.profile_card.grid(row=13, column=0, padx=15, pady=20, sticky="ew")
+        
+        #Area de conteúdo das abas
+        self.tab_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.tab_container.grid(row=0, column=1, sticky="nsew", padx=20, pady=15)
+        self.tab_container.grid_columnconfigure(0, weight=1)
+        self.tab_container.grid_rowconfigure(0, weight=1)
+        
+        self.tabs = {
+            "dashboard": DashboardTab(self.tab_container, self),
+            "pets": PetsTab(self.tab_container, self),
+            "appointments": AppointmentsTab(self.tab_container, self),
+            "health": HealthTab(self.tab_container, self),
+            "reports": ReportsTab(self.tab_container, self),
+            "settings": SettingsTab(self.tab_container, self),
+        }
+        self.current_active_tab = None
+    
+    def on_show(self):
+        if self.controller.current_user:
+            user = self.controller_user
+            self.profile_card.configure(text= f"👤 Treinador: {user['name']} \n - Online (@{user['username']})")
+            self.switch_tab("dashboard")
+        
+    def switch_tab(self, tab_key):
+        if self.current_active_tab is not None:
+            self.current_active_tab.grid_forget()
+
+        for key, btn in self.nav_buttons.items():
+            if key == tab_key:
+                btn.configure(
+                    fg_color=(self.controller.theme["card_light"], self.controller.theme["card_dark"]),
+                    text_color=self.controller.theme["primary"],
+                    font=ctk.CTkFont(size=14, weight="bold")
+                )
+            else:
+                btn.configure(
+                    fg_color="transparent",
+                    text_color=("gray30", "gray70"),
+                    font=ctk.CTkFont(size=14, weight="normal")
+                )
+
+        target_tab = self.tabs[tab_key]
+        self.current_active_tab = target_tab
+        target_tab.grid(row=0, column=0, sticky="nsew")
+
+        if hasattr(target_tab, "refresh"):
+            target_tab.refresh() 
+            
+    def confirm_logout(self):
+        dialog = ctk.CTkToplevel(self)
+         
+    def apply_theme(self, theme):
+        self.sidebar.configure(fg_color=(theme["sidebar_light"], theme["sidebar_dark"]))
+        self.logo_label.configure(text_color=theme["primary"])
+        self.theme_menu.configure(fg_color=theme["primary"], button_color=theme["hover"])
+        self.mode_menu.configure(fg_color=theme["primary"], button_color=theme["hover"])
+        self.profile_card.configure(fg_color=(theme["card_light"], theme["card_dark"]), text_color=(theme["primary"], "#FFFFFF"))
+        
+        for tab in self.tabs.values():
+            if hasattr(tab, "apply_theme"):
+                tab.apply_theme(theme)
+    
+# =====================================================================
+# 8. ABA 1: DASHBOARD (Com Foto Exibida Real)
+# =====================================================================
+class DashboardTab(ctk.CTkScrollableFrame):
+    def __init__(self, parent, container):
+        super().__init__(parent, fg_color="transparent")
+        self.container = container
+        self.grid_columnconfigure(0, weight=1)
+       
+        
+    # def apply_theme(self, theme):
+    #     self.btn_new_pet.configure(fg_color=theme["primary"], hover_color=theme["hover"])
+    #     for card, _ in self.metric_cards.values():
+    #         card.configure(
+    #             fg_color=(theme["card_light"], theme["card_dark"]),
+    #             border_color=theme["primary"]
+    #         )
+    #     self.card_agend.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=(theme["accent"], "#1E293B"))
+    #     self.card_ativ.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=(theme["accent"], "#1E293B"))
+    #     self.right_col.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=(theme["accent"], "#1E293B"))
+
+# =====================================================================
+# 9. ABA 2: MEUS PETS (Com Edição e Upload de Foto)
+# =====================================================================
+class PetsTab(ctk.CTkScrollableFrame):
+    def __init__(self, parent, container):
+        super().__init__(parent, fg_color="transparent")
+        self.container = container
+        self.grid_columnconfigure(0, weight=1)
+        self.selected_image_path = ""
+        self.editing_pet_id = None
+
+    # def apply_theme(self, theme):
+    #     self.form_card.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
+    #     self.btn_save_pet.configure(fg_color=theme["primary"], hover_color=theme["hover"])
+    #     self.btn_upload.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_width=1, border_color=theme["primary"], text_color=theme["primary"])
+
+
+# =====================================================================
+# 10. ABA 3: AGENDAMENTOS
+# =====================================================================
+class AppointmentsTab(ctk.CTkScrollableFrame):
+    def __init__(self, parent, container):
+        super().__init__(parent, fg_color="transparent")
+        self.container = container
+        self.grid_columnconfigure(0, weight=1)
+
+    # def apply_theme(self, theme):
+    #     self.form_card.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
+    #     self.btn_save.configure(fg_color=theme["primary"], hover_color=theme["hover"])
+        
+        
+# =====================================================================
+# 11. ABA 4: SAÚDE
+# =====================================================================
+class HealthTab(ctk.CTkScrollableFrame):
+    def __init__(self, parent, container):
+        super().__init__(parent, fg_color="transparent")
+        self.container = container
+        self.grid_columnconfigure(0, weight=1)
+
+    # def apply_theme(self, theme):
+    #     self.form_card.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
+    #     self.btn_save.configure(fg_color=theme["primary"], hover_color=theme["hover"])
+
+# =====================================================================
+# 12. ABA 5: RELATÓRIOS
+# =====================================================================
+class ReportsTab(ctk.CTkScrollableFrame):
+    def __init__(self, parent, container):
+        super().__init__(parent, fg_color="transparent")
+        self.container = container
+        self.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(self, text="📄 Relatórios & Sumário Geral", font=ctk.CTkFont(size=22, weight="bold")).pack(anchor="w", pady=(5, 15))
+
+        self.summary_card = ctk.CTkFrame(self, corner_radius=16, border_width=1)
+        self.summary_card.pack(fill="x", pady=10, padx=5)
+
+        self.summary_text = ctk.CTkLabel(self.summary_card, text="", justify="left", font=ctk.CTkFont(size=14))
+        self.summary_text.pack(padx=20, pady=20, anchor="w")
+
+    def refresh(self):
+        user = self.container.controller.current_user
+        if not user:
+            return
+
+        tot, prox, hoje, alert = Database.get_dashboard_metrics(user["id"])
+        pets = Database.get_pets(user["id"])
+        
+        species_count = {}
+        for p in pets:
+            spec = p[2]
+            species_count[spec] = species_count.get(spec, 0) + 1
+
+        dist = "\n".join([f"  • {k}: {v}" for k, v in species_count.items()]) if species_count else "  • Nenhum animal cadastrado."
+
+        text = (
+            f"Relatório de Gestão do Centro:\n\n"
+            f"• Responsável: {user['name']} (@{user['username']})\n"
+            f"• Email de Contato: {user['email']}\n"
+            f"• Telefone: {user['phone'] or 'Não informado'}\n"
+            f"• Endereço: {user['address'] or 'Não informado'}\n\n"
+            f"Estatísticas Gerais:\n"
+            f"• Total de Pets Registrados: {tot}\n"
+            f"• Agendamentos Pendentes: {prox}\n"
+            f"• Atendimentos de Hoje: {hoje}\n"
+            f"• Pets sob Alerta / Cuidados Especiais: {alert}\n\n"
+            f"Distribuição por Categoria/Espécie:\n{dist}"
+        )
+        self.summary_text.configure(text=text)
+
+    def apply_theme(self, theme):
+        self.summary_card.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
+
+
+# =====================================================================
+# 13. ABA 6: CONFIGURAÇÕES (Com Edição de Perfil e Gestão de Tipos/Raças)
+# =====================================================================
+class SettingsTab(ctk.CTkScrollableFrame):
+    def __init__(self, parent, container):
+        super().__init__(parent, fg_color="transparent")
+        self.container = container
+        self.grid_columnconfigure(0, weight=1)
+    
+        ctk.CTkLabel(self, text="⚙️ Configurações do Sistema", font=ctk.CTkFont(size=22, weight="bold")).pack(anchor="w", pady=(5, 15))
+
+        # CARD 1: Dados da Conta com Botão de Edição
+        self.card_user = ctk.CTkFrame(self, corner_radius=16, border_width=1)
+        self.card_user.pack(fill="x", pady=(0, 15), padx=5)
+
+        user_head = ctk.CTkFrame(self.card_user, fg_color="transparent")
+        user_head.pack(fill="x", padx=20, pady=(15, 10))
+        
+        ctk.CTkLabel(user_head, text="Informações do Tutor / Conta", font=ctk.CTkFont(size=16, weight="bold")).pack(side="left")
+        
+        #Falta o botão de edit aqui em baixo
+        
+        self.info_lbl = ctk.CTkLabel(self.card_user, text="", justify="left", font=ctk.CTkFont(size=13), text_color="gray60")
+        self.info_lbl.pack(anchor="w", padx=20, pady=(0, 20))
+
+
+
+    # def apply_theme(self, theme):
+    #     self.card_user.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
+    #     self.card_tax.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
+    #     self.btn_edit_user.configure(fg_color=theme["primary"], hover_color=theme["hover"], text_color="#000000")
+    #     self.btn_add_species.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_width=1, border_color=theme["primary"], text_color=theme["primary"])
+    #     self.btn_add_icon.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_width=1, border_color=theme["primary"], text_color=theme["primary"])
+
+# =====================================================================
+# EXECUÇÃO DA APLICAÇÃO
+# =====================================================================
+if __name__ == "__main__":
+    app = App()
+    app.mainloop()
