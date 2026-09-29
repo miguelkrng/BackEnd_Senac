@@ -770,7 +770,7 @@ class HomeContainerFrame(ctk.CTkFrame):
         self.tabs={
             "dashboard":DashboardTab(self.tab_container, self),
             "pets": PetsTab(self.tab_container, self),
-            "appoinments": AppointmentsTab(self.tab_container,self),
+            "appointments": AppointmentsTab(self.tab_container,self),
             "health": ReportsTab(self.tab_container,self),
             "reports": ReportsTab(self.tab_container,self),
             "settings": SettingsTab(self.tab_container, self)
@@ -778,7 +778,7 @@ class HomeContainerFrame(ctk.CTkFrame):
         self.current_active_tab = None
     def on_show(self):
         if self.controller.current_user:
-            user = self.controller.user
+            user = self.controller.current_user
             self.profile_card.configure(text=f"👤 Mestre Pokémon: {user['name']} \n •Online (@{user['username']})")
             self.switch_tab("dashboard")
         
@@ -965,7 +965,7 @@ class DashboardTab(ctk.CTkScrollableFrame):
                 row.pack(fill="x", pady=3, ipady=4)
                 ctk.CTkLabel(row, text=f"📅{dt}", font=ctk.CTkFont(size=12, weight="bold")).pack(side="left", padx=10)
                 ctk.CTkLabel(row, text=f"{pet_name} ({s_type})", font=ctk.CTkFont(size=12)).pack(side="left", padx=10)
-                ctk.CTkLabel(row, text=f"{status}", corner_radius=6, fg_color="#451A03", text_color="#FDBA74", font=ctk.CTkFont(size=11, weight="bold")).pack(side="right", apdx=10)
+                ctk.CTkLabel(row, text=f"{status}", corner_radius=6, fg_color="#451A03", text_color="#FDBA74", font=ctk.CTkFont(size=11, weight="bold")).pack(side="right", padx=10)
         
         for widget in self.ativ_list_frame.winfo_children():
             widget.destroy()
@@ -1242,10 +1242,10 @@ class PetsTab(ctk.CTkScrollableFrame):
         self.refresh()
 
             
-        # def apply_theme(self, theme):
-        #     self.form_card.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
-        #     self.btn_save_pet.configure(fg_color=theme["primary"], hover_color=theme["hover"])
-        #     self.btn_upload.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_width=1, border_color=theme["primary"], text_color=theme["primary"])
+    def apply_theme(self, theme):
+        self.form_card.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
+        self.btn_save_pet.configure(fg_color=theme["primary"], hover_color=theme["hover"])
+        self.btn_upload.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_width=1, border_color=theme["primary"], text_color=theme["primary"])
 
 
 # =====================================================================
@@ -1256,11 +1256,72 @@ class AppointmentsTab(ctk.CTkScrollableFrame):
         super().__init__(parent, fg_color="transparent")
         self.container = container
         self.grid_columnconfigure(0, weight=1)
-
-    # def apply_theme(self, theme):
-    #     self.form_card.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
-    #     self.btn_save.configure(fg_color=theme["primary"], hover_color=theme["hover"])
         
+        ctk.CTkLabel(self, text="Agendamento de Consultas e Serviços", font=ctk.CTkFont(size=22, weight="bold")).pack(anchor="w", pady=(5,15))
+        
+        self.form_card = ctk.CTkFrame(self, corner_radius=16, border_width=1)
+        self.form_card.pack(fill="x", pady=(0,20), padx=5)
+        
+        grid = ctk.CTkFrame(self.form_card, fg_color = "transparent")
+        grid.pack(fill="x", padx=20 ,pady=15)
+        grid.grid_columnconfigure((0,1,2), weight=1)
+        
+        self.pet_select = ctk.CTkOptionMenu(grid, values=["Nenhum Pokémon"])
+        self.pet_select.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+        
+        self.type_select = ctk.CTkOptionMenu(grid, values=["Aplicação de poções", "Consulta clínica", "Spa", "Check-up geral"])
+        self.type_select.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        
+        self.date_entry = ctk.CTkEntry(grid, placeholder_text="Data (ex: 15/10)")
+        self.date_entry.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+        
+        self.btn_save = ctk.CTkButton(self.form_card, text="Agendar Serviço", font=ctk.CTkFont(weight="bold"), text_color="#000000", command=self.save_app)
+        self.btn_save.pack(padx=20, pady=(0,20), anchor="e")
+        
+        self.list_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.list_container.pack(fill="both", expand=True)
+
+    def save_app(self):
+        user = self.container.controller.current_user
+        pet_name = self.pet_select.get()
+        s_type = self.type_select.get()
+        dt = self.date_entry.get().strip()
+        
+        if pet_name == "Nenhum Pet" or not dt:
+            return
+        
+        Database.add_appointment(user["id"], pet_name, s_type, dt)
+        self.date_entry.delete(0, "end")
+        self.refresh()
+        
+    def refresh(self):
+        user = self.container.controller.current_user
+        if not user:
+            return
+        pets = Database.get_pets(user["id"])
+        pet_names = [p[1] for p in pets] if pets else ["Nenhum Pet"]
+        self.pet_select.configure(values=pet_names)
+        self.pet_select.set(pet_names[0])
+        
+        for widget in self.list_container.winfo_children():
+            widget.destroy()
+        agends = Database.get_appointments(user[id])
+        if not agends:
+            ctk.CTkLabel(self.list_container, text="Nenhum Agendamento registrado.", text_color="gray60").pack(pady=20)
+            return
+        for _, pet_names, s_types, dt, status in agends:
+            card = ctk.CTkFrame(self.list_container, corner_radius=12, border_width=1)
+            card.pack(fill="x", pady=4, padx=5)
+            
+        ctk.CTkLabel(card, texct=f"📅 {dt}", font=ctk.CTkFont(size=14, weight="bold")).pack(side="left", padx=15, pady=10)
+        ctk.CTkLabel(card, text=f"{pet_names} - {s_types}", font=ctk.CTkFont(size=14)).pack(side="left", padx=10)
+        ctk.CTkLabel(card, text=f"{status}", corner_radius=6, fg_color="#520C0C", text_color="#e3ba84")
+    
+        
+    def apply_theme(self, theme):
+        self.form_card.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
+        self.btn_save.configure(fg_color=theme["primary"], hover_color=theme["hover"])
+
         
 # =====================================================================
 # 11. ABA 4: SAÚDE
