@@ -34,32 +34,32 @@ import customtkinter as ctk
     
 # =====================================================================================
 
-# class App_verificar_numero(ctk.CTk):
-#     def __init__(self):
-#         super().__init__()
+class App_verificar_numero(ctk.CTk):
+    def __init__(self):
+        super().__init__()
         
-#         self.title("Verificador") 
-#         self.geometry('400x520') 
-#         self.resizable(False, False)
+        self.title("Verificador") 
+        self.geometry('400x520') 
+        self.resizable(False, False)
         
-#         self.numero_label = ctk.CTkLabel(self, text="Informe um número ", text_color="#000000")
-#         self.numero_label.pack(padx = 13, pady = 22)
-#         self.numero_entry = ctk.CTkEntry(self, placeholder_text="Ex: 120", width=360, height=50,)
-#         self.numero_entry.pack(pady=10,padx=30)
-#         self.verificar_btn = ctk.CTkButton(self, text="Verificar número", command = self.verificar_numero)
-#         self.verificar_btn.pack(padx=10, pady=(15,10))
+        self.numero_label = ctk.CTkLabel(self, text="Informe um número ", text_color="#000000")
+        self.numero_label.pack(padx = 13, pady = 22)
+        self.numero_entry = ctk.CTkEntry(self, placeholder_text="Ex: 120", width=360, height=50,)
+        self.numero_entry.pack(pady=10,padx=30)
+        self.verificar_btn = ctk.CTkButton(self, text="Verificar número", command = self.verificar_numero)
+        self.verificar_btn.pack(padx=10, pady=(15,10))
         
-#     def verificar_numero(self):
-#         self.numero_get = self.numero_entry.get()
-#         try:
-#             self.numero_float = float(self.numero_get)
-#             self.numero_label.configure(text="Número aceito!", text_color="#23da84")
-#         except ValueError:
-#             self.numero_label.configure(text="Digite um número!!", text_color="#d80f3a")
+    def verificar_numero(self):
+        self.numero_get = self.numero_entry.get()
+        try:
+            self.numero_float = float(self.numero_get)
+            self.numero_label.configure(text="Número aceito!", text_color="#23da84")
+        except ValueError:
+            self.numero_label.configure(text="Digite um número!!", text_color="#d80f3a")
             
-# if __name__ == "__main__":
-#     app = App_verificar_numero()
-#     app.mainloop()
+if __name__ == "__main__":
+    app = App_verificar_numero()
+    app.mainloop()
 
 # ===========================================================
 

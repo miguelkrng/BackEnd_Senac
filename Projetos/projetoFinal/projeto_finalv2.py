@@ -575,7 +575,7 @@ class LoginFrame(ctk.CTkFrame):
         pwd = self.pass_entry.get()
 
         if not ident or not pwd:
-            self.feedback.configure(text="Preencha todos os campos!", text_color="#EF4444")
+            self.feedback.configure(text="Preencha todos os campos!", text_color="#EF4F44")
             return
 
         success, result = Database.authenticate_user(ident, pwd)
@@ -711,7 +711,7 @@ class HomeContainerFrame(ctk.CTkFrame):
         self.sidebar.grid_rowconfigure(12, weight=1)
 
         self.logo_label = ctk.CTkLabel(
-            self.sidebar, text="- PokePet Central (Admin) -", 
+            self.sidebar, text="- PokéPet Central -", 
             font=ctk.CTkFont(size=20, weight="bold")
         )
         self.logo_label.grid(row=0, column=0, padx=20, pady=(25, 20), sticky="w")
@@ -719,10 +719,10 @@ class HomeContainerFrame(ctk.CTkFrame):
         self.nav_buttons = {}
         tabs= {
             ("dashboard",  "📊 Dashboard"), #o primeiro é oq vai ficar salvo no código e o segundo o que aparece pro usuário
-            ("pets", "- Meus Pokémons -"),
+            ("pets", "🐲 Meus Pokémons "),
             ("appointments", "📆 Agendamentos"),
-            ("health", "🩺 Saúde, Poções e Cuidados com seu Pokémon 🩺"),
-            ("reports", "📋 Relatórios e Registros do seu Pokémon"),
+            ("health", "🩺 Saúde "),
+            ("reports", "📋 Relatórios e Registros"),
             ("settings", "⚙️ Configurações")
         }
 
@@ -738,7 +738,7 @@ class HomeContainerFrame(ctk.CTkFrame):
             self.nav_buttons[key] = btn
 
 
-        self.theme_picker_label = ctk.CTkLabel(self.sidebar, text="🎨 Estética Pet:", font=ctk.CTkFont(size=12, weight="bold"))
+        self.theme_picker_label = ctk.CTkLabel(self.sidebar, text="🎨 Estética Pokémon:", font=ctk.CTkFont(size=12, weight="bold"))
         self.theme_picker_label.grid(row=8, column=0, padx=20, pady=(20, 2), sticky="w")
 
         self.theme_menu = ctk.CTkOptionMenu(
@@ -754,7 +754,7 @@ class HomeContainerFrame(ctk.CTkFrame):
         self.mode_menu.grid(row=10, column=0, padx=15, pady=(4, 15), sticky="ew")
         
         self.profile_card = ctk.CTkButton(
-            self.sidebar, text= "👤 Carregando ... \n •Online", height=50,
+            self.sidebar, text= "👤 Carregando ... \n • Online", height=50,
             corner_radius=12, anchor="w", font=ctk.CTkFont(size=13),
             command=self.confirm_logout
         )
@@ -771,7 +771,7 @@ class HomeContainerFrame(ctk.CTkFrame):
             "dashboard":DashboardTab(self.tab_container, self),
             "pets": PetsTab(self.tab_container, self),
             "appointments": AppointmentsTab(self.tab_container,self),
-            "health": ReportsTab(self.tab_container,self),
+            "health": HealthTab(self.tab_container,self),
             "reports": ReportsTab(self.tab_container,self),
             "settings": SettingsTab(self.tab_container, self)
         }
@@ -779,7 +779,7 @@ class HomeContainerFrame(ctk.CTkFrame):
     def on_show(self):
         if self.controller.current_user:
             user = self.controller.current_user
-            self.profile_card.configure(text=f"👤 Mestre Pokémon: {user['name']} \n •Online (@{user['username']})")
+            self.profile_card.configure(text=f"👤 Mestre Pokémon: {user['name']} \n • Online (@{user['username']})")
             self.switch_tab("dashboard")
         
     def switch_tab(self, tab_key):
@@ -809,7 +809,7 @@ class HomeContainerFrame(ctk.CTkFrame):
             
     def confirm_logout(self):
         dialog = ctk.CTkToplevel(self) 
-        dialog.title("Encerrar Sessao")
+        dialog.title("Encerrar Sessão")
         dialog.geometry("300x200")
         dialog.transient(self)
         dialog.grab_set()
@@ -898,48 +898,48 @@ class DashboardTab(ctk.CTkScrollableFrame):
             val_lbl.pack(anchor="w", padx=14, pady=(2,0))
             self.metric_cards[key] = (card, val_lbl)
             
-            self.content_grid = ctk.CTkFrame(self, fg_color="transparent")
-            self.content_grid.pack(fill="both", expand=True)
-            self.content_grid.grid_columnconfigure((0,1), weight=1)
-            
-            #Coluna esquerda
-            self.left_col = ctk.CTkFrame(self.content_grid, fg_color="transparent")
-            self.left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-            
-            self.card_agend = ctk.CTkFrame(self.left_col, corner_radius=16, border_width=1)
-            self.card_agend.pack(fill="x", pady=(0, 15))
-            
-            agend_h = ctk.CTkFrame(self.card_agend, fg_color="transparent")
-            agend_h.pack(fill="x", pady=16, padx=(14, 8))
-            ctk.CTkLabel(agend_h, text="📆 Próximos Agendamentos", font=ctk.CTkFont(size=16, weight="bold")).pack(side="left")
-            ctk.CTkButton(agend_h, text="Ver Todos", width=70, height=24, fg_color="transparent", command=lambda: self.container.switch_tab("appointments")).pack(side="right")
-       
-            self.agend_list_frame = ctk.CTkFrame(self.card_agend, fg_color="transparent")
-            self.agend_list_frame.pack(fill="x", padx=16, pady=(0,14))
-            
-            self.card_ativ = ctk.CTkFrame(self.left_col, corner_radius=16, border_width=1)
-            self.card_ativ.pack(fill="x")
-            
-            ativ_h = ctk.CTkFrame(self.card_ativ, fg_color="transparent")
-            ativ_h.pack(fill="x", pady=16, padx=(14, 8))
-            ctk.CTkLabel(ativ_h, text="📝 Atividades Recentes", font=ctk.CTkFont(size=16, weight="bold")).pack(side="left")
-            
-            self.ativ_list_frame = ctk.CTkFrame(self.card_ativ, fg_color="transparent")
-            self.ativ_list_frame.pack(fill="x", padx=16, pady=(0,14))   
-            # aaaaaaa
-            #Coluna direita (Pokemon recente)
-            self.right_col = ctk.CTkFrame(self.content_grid, corner_radius=16, border_width=1)
-            self.right_col.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+        self.content_grid = ctk.CTkFrame(self, fg_color="transparent")
+        self.content_grid.pack(fill="both", expand=True)
+        self.content_grid.grid_columnconfigure((0,1), weight=1)
         
-            pets_h = ctk.CTkFrame(self.right_col, fg_color="transparent")
-            pets_h.pack(fill="x", pady=16, padx=(14,10))
-            ctk.CTkLabel(pets_h, text="Meus Pokemon recentes", font=ctk.CTkFont(size=16, weight="bold")).pack(side="left")
-            ctk.CTkButton(pets_h, text="Gerenciar", width=70, height=24, fg_color="transparent", command=lambda: self.container.switch_tab("pets")).pack(side="right")
-            
-            self.pets_grid_frame = ctk.CTkFrame(self.right_col, fg_color="transparent")
-            self.pets_grid_frame.pack(fill="both", expand=True, padx=12, pady=(0,14))
-            self.pets_grid_frame.grid_columnconfigure((0,1), weight=1)
-            
+        #Coluna esquerda
+        self.left_col = ctk.CTkFrame(self.content_grid, fg_color="transparent")
+        self.left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        
+        self.card_agend = ctk.CTkFrame(self.left_col, corner_radius=16, border_width=1)
+        self.card_agend.pack(fill="x", pady=(0, 15))
+        
+        agend_h = ctk.CTkFrame(self.card_agend, fg_color="transparent")
+        agend_h.pack(fill="x", pady=16, padx=(14, 8))
+        ctk.CTkLabel(agend_h, text="📆 Próximos Agendamentos", font=ctk.CTkFont(size=16, weight="bold")).pack(side="left")
+        ctk.CTkButton(agend_h, text="Ver Todos", width=70, height=24, fg_color="transparent", command=lambda: self.container.switch_tab("appointments")).pack(side="right")
+    
+        self.agend_list_frame = ctk.CTkFrame(self.card_agend, fg_color="transparent")
+        self.agend_list_frame.pack(fill="x", padx=16, pady=(0,14))
+        
+        self.card_ativ = ctk.CTkFrame(self.left_col, corner_radius=16, border_width=1)
+        self.card_ativ.pack(fill="x")
+        
+        ativ_h = ctk.CTkFrame(self.card_ativ, fg_color="transparent")
+        ativ_h.pack(fill="x", pady=16, padx=(14, 8))
+        ctk.CTkLabel(ativ_h, text="📝 Atividades Recentes", font=ctk.CTkFont(size=16, weight="bold")).pack(side="left")
+        
+        self.ativ_list_frame = ctk.CTkFrame(self.card_ativ, fg_color="transparent")
+        self.ativ_list_frame.pack(fill="x", padx=16, pady=(0,14))   
+        # aaaaaaa
+        #Coluna direita (Pokemon recente)
+        self.right_col = ctk.CTkFrame(self.content_grid, corner_radius=16, border_width=1)
+        self.right_col.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+    
+        pets_h = ctk.CTkFrame(self.right_col, fg_color="transparent")
+        pets_h.pack(fill="x", pady=16, padx=(14,10))
+        ctk.CTkLabel(pets_h, text="Meus Pokemon recentes", font=ctk.CTkFont(size=16, weight="bold")).pack(side="left")
+        ctk.CTkButton(pets_h, text="Gerenciar", width=70, height=24, fg_color="transparent", command=lambda: self.container.switch_tab("pets")).pack(side="right")
+        
+        self.pets_grid_frame = ctk.CTkFrame(self.right_col, fg_color="transparent")
+        self.pets_grid_frame.pack(fill="both", expand=True, padx=12, pady=(0,14))
+        self.pets_grid_frame.grid_columnconfigure((0,1), weight=1)
+        
     def refresh (self):
         user = self.container.controller.current_user
         if not user:
@@ -1287,7 +1287,7 @@ class AppointmentsTab(ctk.CTkScrollableFrame):
         s_type = self.type_select.get()
         dt = self.date_entry.get().strip()
         
-        if pet_name == "Nenhum Pet" or not dt:
+        if pet_name == "Nenhum Pokémon" or not dt:
             return
         
         Database.add_appointment(user["id"], pet_name, s_type, dt)
@@ -1299,13 +1299,13 @@ class AppointmentsTab(ctk.CTkScrollableFrame):
         if not user:
             return
         pets = Database.get_pets(user["id"])
-        pet_names = [p[1] for p in pets] if pets else ["Nenhum Pet"]
+        pet_names = [p[1] for p in pets] if pets else ["Nenhum Pokémon"]
         self.pet_select.configure(values=pet_names)
         self.pet_select.set(pet_names[0])
         
         for widget in self.list_container.winfo_children():
             widget.destroy()
-        agends = Database.get_appointments(user[id])
+        agends = Database.get_appointments(user["id"])
         if not agends:
             ctk.CTkLabel(self.list_container, text="Nenhum Agendamento registrado.", text_color="gray60").pack(pady=20)
             return
@@ -1313,9 +1313,9 @@ class AppointmentsTab(ctk.CTkScrollableFrame):
             card = ctk.CTkFrame(self.list_container, corner_radius=12, border_width=1)
             card.pack(fill="x", pady=4, padx=5)
             
-        ctk.CTkLabel(card, texct=f"📅 {dt}", font=ctk.CTkFont(size=14, weight="bold")).pack(side="left", padx=15, pady=10)
-        ctk.CTkLabel(card, text=f"{pet_names} - {s_types}", font=ctk.CTkFont(size=14)).pack(side="left", padx=10)
-        ctk.CTkLabel(card, text=f"{status}", corner_radius=6, fg_color="#520C0C", text_color="#e3ba84")
+            ctk.CTkLabel(card, text=f"📅 {dt}", font=ctk.CTkFont(size=14, weight="bold")).pack(side="left", padx=15, pady=10)
+            ctk.CTkLabel(card, text=f"{pet_names} - {s_types}", font=ctk.CTkFont(size=14)).pack(side="left", padx=10)
+            ctk.CTkLabel(card, text=f"{status}", corner_radius=6, fg_color="#520C0C", text_color="#e3ba84")
     
         
     def apply_theme(self, theme):
@@ -1332,10 +1332,74 @@ class HealthTab(ctk.CTkScrollableFrame):
         self.container = container
         self.grid_columnconfigure(0, weight=1)
 
-    # def apply_theme(self, theme):
-    #     self.form_card.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
-    #     self.btn_save.configure(fg_color=theme["primary"], hover_color=theme["hover"])
+        ctk.CTkLabel (self, text="Saúde, poções e cuidados", font= ctk.CTkFont(size=22, weight="bold")).pack(anchor="w", pady=(5, 15))
 
+        self.form_card = ctk.CTkFrame(self, corner_radius=16, border_width=1)
+        self.form_card.pack(fill= "x", padx=(0, 20), pady=5)
+
+        grid = ctk.CTkFrame (self.form_card, fg_color="transparent")
+        grid.pack(fill= "x", padx=20, pady=15)
+        grid.grid_columnconfigure((1, 2, 3), weight=1)
+
+        self.pet_select = ctk.CTkOptionMenu(grid, values=["Nenhum Pokémon"])
+        self.pet_select.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+
+        self.type_select = ctk.CTkOptionMenu(grid, values=["Poções", "Revive", "Antídoto", "Burn Heal"])
+        self.type_select.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        self.desc_entry = ctk.CTkEntry(grid, placeholder_text="Observações Clínicas")
+        self.desc_entry.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+
+        self.btn_save = ctk.CTkButton(self.form_card, text="Registrar Cuidado", font=ctk.CTkFont(weight="bold"), text_color="#000000", command=self.save_health)
+        self.btn_save.pack(padx=20, pady=(0, 15), anchor="e")
+
+        self.list_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.list_container.pack(fill="both", expand=True)
+
+    def save_health(self):
+        user = self.container.controller.current_user
+        pet_name = self.pet_select.get()
+        r_type = self.type_select.get()
+        desc = self.desc_entry.get().strip()
+        dt = datetime.now().strftime("%d/%m/%Y")
+
+        if pet_name == "Nenhum Pokémon" or not desc:
+            return
+
+        Database.add_health_record(user["id"], pet_name, r_type, desc, dt)
+        self.desc_entry.delete(0, "end")
+        self.refresh()
+
+    def refresh(self):
+        user = self.container.controller.current_user
+        if not user:
+            return
+
+        pets = Database.get_pets(user["id"])
+        pet_names = [p[1] for p in pets] if pets else ["Nenhum Pokémon"]
+        self.pet_select.configure(values=pet_names)
+        self.pet_select.set(pet_names[0])
+
+        for widget in self.list_container.winfo_children():
+            widget.destroy()
+
+        records = Database.get_health_records(user["id"])
+        if not records: 
+            ctk.CTkLabel(self.list_container, text="Nenhum registro de saúde cadastrado.", text_colo="gray60").pack(pady=20)
+            return
+        for _, pet_name,r_type, desc, dt in records:
+            card = ctk.CTkFrame(self.list_container, corner_radius=12, border_width=1)
+            card.pack(fill="x", pady=4, padx=5)
+
+            ctk.CTkLabel(card, text=f"💉 {pet_name}", font=ctk.CTkFont(size=14, weight="bold")).pack(side="left", padx=15, pady=10)
+            ctk.CTkLabel(card, text=f"{r_type} - {desc}", font=ctk.CTkFont(size=13)).pack(side="left", padx=10)
+            ctk.CTkLabel(card, text=dt, font=ctk.CTkFont(size=11), text_color="gray60").pack(side="right", padx=15)
+            
+        
+    def apply_theme(self, theme):
+        self.form_card.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
+        self.btn_save.configure(fg_color=theme["primary"], hover_color=theme["hover"])
+        
 # =====================================================================
 # 12. ABA 5: RELATÓRIOS
 # =====================================================================
@@ -1406,20 +1470,139 @@ class SettingsTab(ctk.CTkScrollableFrame):
         user_head.pack(fill="x", padx=20, pady=(15, 10))
         
         ctk.CTkLabel(user_head, text="Informações do Tutor / Conta", font=ctk.CTkFont(size=16, weight="bold")).pack(side="left")
-        
-        #Falta o botão de edit aqui em baixo
+         
+        self.btn_edit_user = ctk.CTkButton(
+            user_head, text="Editar Perfil", width=120, height=32, font=ctk.CTkFont(size=13, weight="bold"), command= self.open_edit_user_modal
+        )
+        self.btn_edit_user.pack(side="right")
         
         self.info_lbl = ctk.CTkLabel(self.card_user, text="", justify="left", font=ctk.CTkFont(size=13), text_color="gray60")
         self.info_lbl.pack(anchor="w", padx=20, pady=(0, 20))
+        
+        #CARD 2 !! - GESTÃO DE CATEGORIA E TIPOS DE ANIMAIS
+        
+        self.card_tax = ctk.CTkFrame(self, corner_radius=16, border_width=1)
+        self.card_tax.pack(fill="x", pady=5, padx=5)
+        
+        ctk.CTkLabel(self.card_tax, text="Personalização de tipos de Pokémon e categorias", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=20, pady=(15, 5))
+        ctk.CTkLabel(self.card_tax, text="Adicione novos tipos de criatura para selecionar no cadastro.", font=ctk.CTkFont(size=12), text_color="gray60").pack(anchor="w", padx=20, pady=(0,15))
+        
+        btn_grid = ctk.CTkFrame(self.card_tax, fg_color="transparent")
+        btn_grid.pack(fill="x", padx=20, pady=(0, 20))
+        
+        self.btn_add_species = ctk.CTkButton(
+            btn_grid, text="➕ Adicionar Nova Raça de Criatura (Ex: Snom, Tandemaus)", height=40, command=self.modal_add_species
+        )
+        self.btn_add_species.pack(side="left", expand=True, fill="x", padx=(0,8))
+        
+        self.btn_add_icon = ctk.CTkButton(
+            btn_grid, text="➕ Adicionar Novo Tipo de Pokémon (ex: Luz, Tinta)", height=40, command= self.modal_add_icon
+        )
+        self.btn_add_icon.pack(side="right", expand=True, fill="x", padx=(0,8))
+        
+    def refresh(self):
+        user = self.container.controller.current_user
+        if user:
+            self.info_lbl.configure(
+                text=f"ID do Usuário: {user['id']}\n"
+                     f"Nome: {user['name']}\n"
+                     f"Usuário: @{user['username']}\n"
+                     f"Email: {user['email']}\n"
+                     f"Telefone: {user['phone'] or 'Não cadastrado'}\n"
+                     f"Endereço: {user['address'] or 'Não cadastrado'}"
+            )
+
+    def open_edit_user_modal(self):
+        """Modal para editar as informações do usuário logado."""
+        user = self.container.controller.current_user
+        if not user:
+            return
+
+        modal = ctk.CTkToplevel(self)
+        modal.title("Editar Informações do Perfil")
+        modal.geometry("450x420")
+        modal.transient(self)
+        modal.grab_set()
+        modal.resizable(False, False)
+
+        ctk.CTkLabel(modal, text="Editar Dados da Conta", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=(20, 10))
+
+        name_e = ctk.CTkEntry(modal, width=340, height=42, placeholder_text="Nome Completo")
+        name_e.pack(pady=6)
+        name_e.insert(0, user["name"])
+
+        email_e = ctk.CTkEntry(modal, width=340, height=42, placeholder_text="Email")
+        email_e.pack(pady=6)
+        email_e.insert(0, user["email"])
+
+        phone_e = ctk.CTkEntry(modal, width=340, height=42, placeholder_text="Telefone")
+        phone_e.pack(pady=6)
+        phone_e.insert(0, user["phone"] or "")
+
+        addr_e = ctk.CTkEntry(modal, width=340, height=42, placeholder_text="Endereço Completo")
+        addr_e.pack(pady=6)
+        addr_e.insert(0, user["address"] or "")
+
+        feedback = ctk.CTkLabel(modal, text="", font=ctk.CTkFont(size=12))
+        feedback.pack(pady=4)
+
+        def save_user_changes():
+            n = name_e.get().strip()
+            em = email_e.get().strip()
+            ph = phone_e.get().strip()
+            ad = addr_e.get().strip()
+
+            if not n or not em:
+                feedback.configure(text="Nome e Email são obrigatórios!", text_color="#EF4444")
+                return
+
+            ok, msg = Database.update_user(user["id"], n, em, ph, ad)
+            if ok:
+                user["name"] = n
+                user["email"] = em
+                user["phone"] = ph
+                user["address"] = ad
+                self.container.profile_card.configure(text=f" 👤 {n}\n   ● Online (@{user['username']})")
+                self.refresh()
+                modal.destroy()
+            else:
+                feedback.configure(text=msg, text_color="#EF4444")
+
+        btn_box = ctk.CTkFrame(modal, fg_color="transparent")
+        btn_box.pack(pady=(15, 10))
+
+        ctk.CTkButton(btn_box, text="Cancelar", width=120, height=36, fg_color="transparent", border_width=1, border_color="gray50", command=modal.destroy).pack(side="left", padx=5)
+        ctk.CTkButton(btn_box, text="Salvar", width=120, height=36, fg_color=self.container.controller.theme["primary"], text_color="#000000", command=save_user_changes).pack(side="right", padx=5)
+
+    def modal_add_species(self):
+        """Diálogo para cadastrar um novo tipo de pet."""
+        dialog = ctk.CTkInputDialog(text="Digite a nova raça de Pokémon / Criatura:\n(ex: Snom, Tandemaus)", title="Nova raça de Pokémon")
+        val = dialog.get_input()
+        if val and val.strip():
+            if Database.add_species(val.strip()):
+                messagebox.showinfo("Sucesso", f"Tipo '{val.strip()}' adicionado com sucesso!")
+                self.container.tabs["pets"].refresh()
+            else:
+                messagebox.showwarning("Aviso", "Este Pokémon já existe na lista!")
+
+    def modal_add_icon(self):
+        """Diálogo para cadastrar uma nova categoria/raça."""
+        dialog = ctk.CTkInputDialog(text="Digite o novo Tipo com ou sem emoji:\n(ex: 🐉 Dragão, 🔮 Psíquico)", title="Novo Tipo")
+        val = dialog.get_input()
+        if val and val.strip():
+            if Database.add_icon(val.strip()):
+                messagebox.showinfo("Sucesso", f"Categoria '{val.strip()}' adicionada com sucesso!")
+                self.container.tabs["pets"].refresh()
+            else:
+                messagebox.showwarning("Aviso", "Este Tipo já existe na lista!")
 
 
-
-    # def apply_theme(self, theme):
-    #     self.card_user.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
-    #     self.card_tax.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
-    #     self.btn_edit_user.configure(fg_color=theme["primary"], hover_color=theme["hover"], text_color="#000000")
-    #     self.btn_add_species.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_width=1, border_color=theme["primary"], text_color=theme["primary"])
-    #     self.btn_add_icon.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_width=1, border_color=theme["primary"], text_color=theme["primary"])
+    def apply_theme(self, theme):
+        self.card_user.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
+        self.card_tax.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_color=theme["primary"])
+        self.btn_edit_user.configure(fg_color=theme["primary"], hover_color=theme["hover"], text_color="#000000")
+        self.btn_add_species.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_width=1, border_color=theme["primary"], text_color=theme["primary"])
+        self.btn_add_icon.configure(fg_color=(theme["card_light"], theme["card_dark"]), border_width=1, border_color=theme["primary"], text_color=theme["primary"])
 
 # =====================================================================
 # EXECUÇÃO DA APLICAÇÃO
